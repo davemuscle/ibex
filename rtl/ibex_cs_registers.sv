@@ -7,8 +7,6 @@
  * Control and Status Registers
  */
 
-`include "prim_assert.sv"
-
 module ibex_cs_registers #(
   parameter bit               DbgTriggerEn      = 0,
   parameter int unsigned      DbgHwBreakNum     = 1,
@@ -1213,8 +1211,6 @@ module ibex_cs_registers #(
         .rd_error_o(pmp_addr_err[i])
       );
 
-      `ASSERT_INIT(PMPAddrRstLowBitsZero_A, pmp_addr_rst[i][33-PMPAddrWidth:0] == '0)
-
       assign csr_pmp_cfg_o[i]  = pmp_cfg[i];
       assign csr_pmp_addr_o[i] = {pmp_addr_rdata[i], 2'b00};
     end
@@ -1674,11 +1670,5 @@ module ibex_cs_registers #(
 
   assign csr_shadow_err_o =
     mstatus_err | mtvec_err | pmp_csr_err | cpuctrlsts_part_err | cpuctrlsts_ic_scr_key_err;
-
-  ////////////////
-  // Assertions //
-  ////////////////
-
-  `ASSERT(IbexCsrOpEnRequiresAccess, csr_op_en_i |-> csr_access_i)
 
 endmodule

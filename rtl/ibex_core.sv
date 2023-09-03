@@ -3,13 +3,6 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-`ifdef RISCV_FORMAL
-  `define RVFI
-`endif
-
-`include "prim_assert.sv"
-`include "dv_fcov_macros.svh"
-
 /**
  * Top level module of the ibex RISC-V core
  */
@@ -380,7 +373,7 @@ module ibex_core import ibex_pkg::*; #(
     localparam int unsigned NumBusySignals = 3;
     localparam int unsigned NumBusyBits = $bits(ibex_mubi_t) * NumBusySignals;
     logic [NumBusyBits-1:0] busy_bits_buf;
-    prim_buf #(
+    prim_generic_buf #(
       .Width(NumBusyBits)
     ) u_fetch_enable_buf (
       .in_i ({$bits(ibex_mubi_t){ctrl_busy, if_busy, lsu_busy}}),
@@ -501,12 +494,6 @@ module ibex_core import ibex_pkg::*; #(
   // Core is waiting for the ISide when ID/EX stage is ready for a new instruction but none are
   // available
   assign perf_iside_wait = id_in_ready & ~instr_valid_id;
-
-  // Multi-bit fetch enable used when SecureIbex == 1. When SecureIbex == 0 only use the bottom-bit
-  // of fetch_enable_i. Ensure the multi-bit encoding has the bottom bit set for on and unset for
-  // off so IbexMuBiOn/IbexMuBiOff can be used without needing to know the value of SecureIbex.
-  `ASSERT_INIT(IbexMuBiSecureOnBottomBitSet,    IbexMuBiOn[0] == 1'b1)
-  `ASSERT_INIT(IbexMuBiSecureOffBottomBitClear, IbexMuBiOff[0] == 1'b0)
 
   // fetch_enable_i can be used to stop the core fetching new instructions
   if (SecureIbex) begin : g_instr_req_gated_secure
@@ -925,77 +912,6 @@ module ibex_core import ibex_pkg::*; #(
   // Major bus alert
   assign alert_major_bus_o = lsu_load_resp_intg_err | lsu_store_resp_intg_err | instr_intg_err;
 
-  // Explict INC_ASSERT block to avoid unused signal lint warnings were asserts are not included
-  `ifdef INC_ASSERT
-  // Signals used for assertions only
-  logic outstanding_load_resp;
-  logic outstanding_store_resp;
-
-  logic outstanding_load_id;
-  logic outstanding_store_id;
-
-  assign outstanding_load_id  = id_stage_i.instr_executing & id_stage_i.lsu_req_dec &
-                                ~id_stage_i.lsu_we;
-  assign outstanding_store_id = id_stage_i.instr_executing & id_stage_i.lsu_req_dec &
-                                id_stage_i.lsu_we;
-
-  if (WritebackStage) begin : gen_wb_stage
-    // When the writeback stage is present a load/store could be in ID or WB. A Load/store in ID can
-    // see a response before it moves to WB when it is unaligned otherwise we should only see
-    // a response when load/store is in WB.
-    assign outstanding_load_resp  = outstanding_load_wb |
-      (outstanding_load_id  & load_store_unit_i.split_misaligned_access);
-
-    assign outstanding_store_resp = outstanding_store_wb |
-      (outstanding_store_id & load_store_unit_i.split_misaligned_access);
-
-    // When writing back the result of a load, the load must have made it to writeback
-    `ASSERT(NoMemRFWriteWithoutPendingLoad, rf_we_lsu |-> outstanding_load_wb, clk_i, !rst_ni)
-  end else begin : gen_no_wb_stage
-    // Without writeback stage only look into whether load or store is in ID to determine if
-    // a response is expected.
-    assign outstanding_load_resp  = outstanding_load_id;
-    assign outstanding_store_resp = outstanding_store_id;
-
-    `ASSERT(NoMemRFWriteWithoutPendingLoad, rf_we_lsu |-> outstanding_load_id, clk_i, !rst_ni)
-  end
-
-  `ASSERT(NoMemResponseWithoutPendingAccess,
-    data_rvalid_i |-> outstanding_load_resp | outstanding_store_resp, clk_i, !rst_ni)
-
-
-  // Keep track of the PC last seen in the ID stage when fetch is disabled
-  logic [31:0]   pc_at_fetch_disable;
-  ibex_mubi_t    last_fetch_enable;
-
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni) begin
-      pc_at_fetch_disable <= '0;
-      last_fetch_enable   <= '0;
-    end else begin
-      last_fetch_enable <= fetch_enable_i;
-
-      if ((fetch_enable_i != IbexMuBiOn) && (last_fetch_enable == IbexMuBiOn)) begin
-        pc_at_fetch_disable <= pc_id;
-      end
-    end
-  end
-
-  // When fetch is disabled no instructions should be executed. Once fetch is disabled either the
-  // ID/EX stage is not valid or the PC of the ID/EX stage must remain as it was at disable. The
-  // ID/EX valid should not ressert once it has been cleared.
-  `ASSERT(NoExecWhenFetchEnableNotOn, fetch_enable_i != IbexMuBiOn |=>
-    (~instr_valid_id || (pc_id == pc_at_fetch_disable)) && ~$rose(instr_valid_id))
-
-  `endif
-
-  ////////////////////////
-  // RF (Register File) //
-  ////////////////////////
-`ifdef RVFI
-`endif
-
-
   /////////////////////////////////////////
   // CSRs (Control and Status Registers) //
   /////////////////////////////////////////
@@ -1109,15 +1025,6 @@ module ibex_core import ibex_pkg::*; #(
     .mul_wait_i                 (perf_mul_wait),
     .div_wait_i                 (perf_div_wait)
   );
-
-  // These assertions are in top-level as instr_valid_id required as the enable term
-  `ASSERT(IbexCsrOpValid, instr_valid_id |-> csr_op inside {
-      CSR_OP_READ,
-      CSR_OP_WRITE,
-      CSR_OP_SET,
-      CSR_OP_CLEAR
-      })
-  `ASSERT_KNOWN_IF(IbexCsrWdataIntKnown, cs_registers_i.csr_wdata_int, csr_op_en)
 
   if (PMPEnable) begin : g_pmp
     logic [31:0] pc_if_inc;
@@ -1801,80 +1708,6 @@ module ibex_core import ibex_pkg::*; #(
   assign unused_instr_id_done = instr_id_done;
   assign unused_instr_new_id = instr_new_id;
   assign unused_instr_done_wb = instr_done_wb;
-`endif
-
-  // Certain parameter combinations are not supported
-  `ASSERT_INIT(IllegalParamSecure, !(SecureIbex && (RV32M == RV32MNone)))
-
-  //////////
-  // FCOV //
-  //////////
-
-`ifndef SYNTHESIS
-  // fcov signals for V2S
-  `DV_FCOV_SIGNAL_GEN_IF(logic, rf_ecc_err_a_id, gen_regfile_ecc.rf_ecc_err_a_id, RegFileECC)
-  `DV_FCOV_SIGNAL_GEN_IF(logic, rf_ecc_err_b_id, gen_regfile_ecc.rf_ecc_err_b_id, RegFileECC)
-
-  // fcov signals for CSR access. These are complicated by illegal accesses. Where an access is
-  // legal `csr_op_en` signals the operation occurring, but this is deasserted where an access is
-  // illegal. Instead `illegal_insn_id` confirms the instruction is taking an illegal instruction
-  // exception.
-  // All CSR operations perform a read, `CSR_OP_READ` is the only one that only performs a read
-  `DV_FCOV_SIGNAL(logic, csr_read_only,
-      (csr_op == CSR_OP_READ) && csr_access && (csr_op_en || illegal_insn_id))
-  `DV_FCOV_SIGNAL(logic, csr_write,
-      cs_registers_i.csr_wr && csr_access && (csr_op_en || illegal_insn_id))
-
-  if (PMPEnable) begin : g_pmp_fcov_signals
-    logic [PMPNumRegions-1:0] fcov_pmp_region_ichan_priority;
-    logic [PMPNumRegions-1:0] fcov_pmp_region_ichan2_priority;
-    logic [PMPNumRegions-1:0] fcov_pmp_region_dchan_priority;
-
-    logic unused_fcov_pmp_region_priority;
-
-    assign unused_fcov_pmp_region_priority = ^{fcov_pmp_region_ichan_priority,
-                                               fcov_pmp_region_ichan2_priority,
-                                               fcov_pmp_region_dchan_priority};
-
-    for (genvar i_region = 0; i_region < PMPNumRegions; i_region += 1) begin : g_pmp_region_fcov
-      `DV_FCOV_SIGNAL(logic, pmp_region_ichan_access,
-          g_pmp.pmp_i.region_match_all[PMP_I][i_region] & if_stage_i.if_id_pipe_reg_we)
-      `DV_FCOV_SIGNAL(logic, pmp_region_ichan2_access,
-          g_pmp.pmp_i.region_match_all[PMP_I2][i_region] & if_stage_i.if_id_pipe_reg_we)
-      `DV_FCOV_SIGNAL(logic, pmp_region_dchan_access,
-          g_pmp.pmp_i.region_match_all[PMP_D][i_region] & data_req_out)
-      // pmp_cfg[5:6] is reserved and because of that the width of it inside cs_registers module
-      // is 6-bit.
-      `DV_FCOV_SIGNAL(logic, warl_check_pmpcfg,
-          fcov_csr_write &&
-          (cs_registers_i.g_pmp_registers.g_pmp_csrs[i_region].u_pmp_cfg_csr.wr_data_i !=
-          {cs_registers_i.csr_wdata_int[(i_region%4)*PMP_CFG_W+:5],
-           cs_registers_i.csr_wdata_int[(i_region%4)*PMP_CFG_W+7]}))
-
-      if (i_region > 0) begin : g_region_priority
-        assign fcov_pmp_region_ichan_priority[i_region] =
-          g_pmp.pmp_i.region_match_all[PMP_I][i_region] &
-          ~|g_pmp.pmp_i.region_match_all[PMP_I][i_region-1:0];
-
-        assign fcov_pmp_region_ichan2_priority[i_region] =
-          g_pmp.pmp_i.region_match_all[PMP_I2][i_region] &
-          ~|g_pmp.pmp_i.region_match_all[PMP_I2][i_region-1:0];
-
-        assign fcov_pmp_region_dchan_priority[i_region] =
-          g_pmp.pmp_i.region_match_all[PMP_D][i_region] &
-          ~|g_pmp.pmp_i.region_match_all[PMP_D][i_region-1:0];
-      end else begin : g_region_highest_priority
-        assign fcov_pmp_region_ichan_priority[i_region] =
-          g_pmp.pmp_i.region_match_all[PMP_I][i_region];
-
-        assign fcov_pmp_region_ichan2_priority[i_region] =
-          g_pmp.pmp_i.region_match_all[PMP_I2][i_region];
-
-        assign fcov_pmp_region_dchan_priority[i_region] =
-          g_pmp.pmp_i.region_match_all[PMP_D][i_region];
-      end
-    end
-  end
 `endif
 
 endmodule

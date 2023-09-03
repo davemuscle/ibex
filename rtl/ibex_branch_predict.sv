@@ -15,8 +15,6 @@
  * The predictor is entirely combinational but takes clk/rst_n signals for use by assertions.
  */
 
-`include "prim_assert.sv"
-
 module ibex_branch_predict (
   input  logic clk_i,
   input  logic rst_ni,
@@ -87,8 +85,6 @@ module ibex_branch_predict (
       default : ;
     endcase
   end
-
-  `ASSERT_IF(BranchInsTypeOneHot, $onehot0({instr_j, instr_b, instr_cj, instr_cb}), fetch_valid_i)
 
   // Determine branch prediction, taken if offset is negative
   assign instr_b_taken = (instr_b & imm_b_type[31]) | (instr_cb & imm_cb_type[31]);

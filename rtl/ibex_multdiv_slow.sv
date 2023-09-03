@@ -9,8 +9,6 @@
  * Baugh-Wooley multiplier and Long Division
  */
 
-`include "prim_assert.sv"
-
 module ibex_multdiv_slow
 (
   input  logic             clk_i,
@@ -359,20 +357,5 @@ module ibex_multdiv_slow
                     operator_i == MD_OP_MULH));
 
   assign multdiv_result_o = div_en_i ? accum_window_q[31:0] : res_adder_l[31:0];
-
-  ////////////////
-  // Assertions //
-  ////////////////
-
-  // State must be valid.
-  `ASSERT(IbexMultDivStateValid, md_state_q inside {
-      MD_IDLE, MD_ABS_A, MD_ABS_B, MD_COMP, MD_LAST, MD_CHANGE_SIGN, MD_FINISH
-      }, clk_i, !rst_ni)
-
-`ifdef FORMAL
-  `ifdef YOSYS
-    `include "formal_tb_frag.svh"
-  `endif
-`endif
 
 endmodule

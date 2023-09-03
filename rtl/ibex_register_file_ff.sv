@@ -61,9 +61,9 @@ module ibex_register_file_ff #(
     // Buffer the decoded write enable bits so that the checker
     // is not optimized into the address decoding logic.
     logic [NUM_WORDS-1:0] we_a_dec_buf;
-    prim_buf #(
+    prim_generic_buf #(
       .Width(NUM_WORDS)
-    ) u_prim_buf (
+    ) u_prim_generic_buf (
       .in_i(we_a_dec),
       .out_o(we_a_dec_buf)
     );

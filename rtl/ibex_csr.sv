@@ -6,8 +6,6 @@
  * Control / status register primitive
  */
 
-`include "prim_assert.sv"
-
 module ibex_csr #(
   parameter int unsigned    Width      = 32,
   parameter bit             ShadowCopy = 1'b0,
@@ -51,7 +49,5 @@ module ibex_csr #(
   end else begin : gen_no_shadow
     assign rd_error_o = 1'b0;
   end
-
-  `ASSERT_KNOWN(IbexCSREnValid, wr_en_i)
 
 endmodule

@@ -144,7 +144,7 @@ module ibex_lockstep import ibex_pkg::*; #(
 
   // The primitives below are used to place size-only constraints in order to prevent
   // synthesis optimizations and preserve anchor points for constraining backend tools.
-  prim_flop #(
+  prim_generic_flop #(
     .Width(1),
     .ResetValue(1'b0)
   ) u_prim_rst_shadow_set_flop (
@@ -154,7 +154,7 @@ module ibex_lockstep import ibex_pkg::*; #(
     .q_o   (rst_shadow_set_q)
   );
 
-  prim_clock_mux2 #(
+  prim_generic_clock_mux2 #(
     .NoFpgaBufG(1'b1)
   ) u_prim_rst_shadow_n_mux2 (
     .clk0_i(rst_shadow_set_q),

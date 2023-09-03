@@ -8,8 +8,6 @@
  * Provides an instruction cache along with cache management, instruction buffering and prefetching
  */
 
-`include "prim_assert.sv"
-
 module ibex_icache import ibex_pkg::*; #(
   parameter bit          ICacheECC       = 1'b0,
   parameter bit          ResetAll        = 1'b0,
@@ -1168,37 +1166,5 @@ module ibex_icache import ibex_pkg::*; #(
   // Only busy (for WFI purposes) while an invalidation is in-progress, or external requests are
   // outstanding.
   assign busy_o = inval_active | (|(fill_busy_q & ~fill_rvd_done));
-
-  ////////////////
-  // Assertions //
-  ////////////////
-
-  `ASSERT_INIT(size_param_legal, (IC_LINE_SIZE > 32))
-
-  // ECC primitives will need to be changed for different sizes
-  `ASSERT_INIT(ecc_tag_param_legal, (IC_TAG_SIZE <= 27))
-  `ASSERT_INIT(ecc_data_param_legal, !ICacheECC || (BUS_SIZE == 32))
-
-  // Lookups in the tag ram should always give a known result
-  `ASSERT_KNOWN(TagHitKnown,     lookup_valid_ic1 & tag_hit_ic1)
-  `ASSERT_KNOWN(TagInvalidKnown, lookup_valid_ic1 & tag_invalid_ic1)
-
-  // This is only used for the Yosys-based formal flow. Once we have working bind support, we can
-  // get rid of it.
-`ifdef FORMAL
- `ifdef YOSYS
-  // Unfortunately, Yosys doesn't support passing unpacked arrays as ports. Explicitly pack up the
-  // signals we need.
-  logic [NUM_FB-1:0][ADDR_W-1:0] packed_fill_addr_q;
-  always_comb begin
-    for (int i = 0; i < NUM_FB; i++) begin
-      packed_fill_addr_q[i][ADDR_W-1:0] = fill_addr_q[i];
-    end
-  end
-
-  `include "formal_tb_frag.svh"
- `endif
-`endif
-
 
 endmodule

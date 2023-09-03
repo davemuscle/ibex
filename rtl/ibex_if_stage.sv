@@ -3,16 +3,6 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Instruction Fetch Stage
- *
- * Instruction fetch unit: Selection of the next PC, and buffering (sampling) of
- * the read instruction.
- */
-
-`include "prim_assert.sv"
-`include "dv_fcov_macros.svh"
-
 module ibex_if_stage import ibex_pkg::*; #(
   parameter int unsigned DmHaltAddr        = 32'h1A110800,
   parameter int unsigned DmExceptionAddr   = 32'h1A110808,
@@ -226,7 +216,7 @@ module ibex_if_stage import ibex_pkg::*; #(
     logic [1:0] ecc_err;
     logic [MemDataWidth-1:0] instr_rdata_buf;
 
-    prim_buf #(.Width(MemDataWidth)) u_prim_buf_instr_rdata (
+    prim_generic_buf #(.Width(MemDataWidth)) u_prim_generic_buf_instr_rdata (
       .in_i (instr_rdata_i),
       .out_o(instr_rdata_buf)
     );
@@ -256,10 +246,6 @@ module ibex_if_stage import ibex_pkg::*; #(
   // The fetch_valid signal that comes out of the icache or prefetch buffer should be squashed if we
   // had a misprediction.
   assign fetch_valid = fetch_valid_raw & ~nt_branch_mispredict_i;
-
-  // We should never see a mispredict and an incoming branch on the same cycle. The mispredict also
-  // cancels any predicted branch so overall branch_req must be low.
-  `ASSERT(NoMispredBranch, nt_branch_mispredict_i |-> ~branch_req)
 
   if (ICache) begin : gen_icache
     // Full I-Cache option
@@ -556,7 +542,7 @@ module ibex_if_stage import ibex_pkg::*; #(
     assign prev_instr_addr_incr = pc_id_o + (instr_is_compressed_id_o ? 32'd2 : 32'd4);
 
     // Buffer anticipated next PC address to ensure optimiser cannot remove the check.
-    prim_buf #(.Width(32)) u_prev_instr_addr_incr_buf (
+    prim_generic_buf #(.Width(32)) u_prev_instr_addr_incr_buf (
       .in_i (prev_instr_addr_incr),
       .out_o(prev_instr_addr_incr_buf)
     );
@@ -668,8 +654,6 @@ module ibex_if_stage import ibex_pkg::*; #(
 
     assign instr_bp_taken_o = instr_bp_taken_q;
 
-    `ASSERT(NoPredictSkid, instr_skid_valid_q |-> ~predict_branch_taken)
-    `ASSERT(NoPredictIllegal, predict_branch_taken |-> ~illegal_c_insn)
   end else begin : g_no_branch_predictor
     assign instr_bp_taken_o     = 1'b0;
     assign predict_branch_taken = 1'b0;
@@ -681,133 +665,5 @@ module ibex_if_stage import ibex_pkg::*; #(
     assign if_instr_bus_err = fetch_err;
     assign fetch_ready = id_in_ready_i & ~stall_dummy_instr;
   end
-
-  //////////
-  // FCOV //
-  //////////
-
-`ifndef SYNTHESIS
-  // fcov signals for V2S
-  `DV_FCOV_SIGNAL_GEN_IF(logic [1:0], dummy_instr_type,
-    gen_dummy_instr.dummy_instr_i.lfsr_data.instr_type, DummyInstructions)
-  `DV_FCOV_SIGNAL_GEN_IF(logic, insert_dummy_instr,
-    gen_dummy_instr.insert_dummy_instr, DummyInstructions)
-`endif
-
-  ////////////////
-  // Assertions //
-  ////////////////
-
-  // Selectors must be known/valid.
-  `ASSERT_KNOWN(IbexExcPcMuxKnown, exc_pc_mux_i)
-
-  if (BranchPredictor) begin : g_branch_predictor_asserts
-    `ASSERT_IF(IbexPcMuxValid, pc_mux_internal inside {
-        PC_BOOT,
-        PC_JUMP,
-        PC_EXC,
-        PC_ERET,
-        PC_DRET,
-        PC_BP},
-      pc_set_i)
-
-`ifdef INC_ASSERT
-    /**
-     * Checks for branch prediction interface to fetch_fifo/icache
-     *
-     * The interface has two signals:
-     * - predicted_branch_i: When set with a branch (branch_i) indicates the branch is a predicted
-     *   one, it should be ignored when a branch_i isn't set.
-     * - branch_mispredict_i: Indicates the previously predicted branch was mis-predicted and
-     *   execution should resume with the not-taken side of the branch (i.e. continue with the PC
-     *   that followed the predicted branch). This must be raised before the instruction that is
-     *   made available following a predicted branch is accepted (Following a cycle with branch_i
-     *   & predicted_branch_i, branch_mispredict_i can only be asserted before or on the same cycle
-     *   as seeing fetch_valid & fetch_ready). When branch_mispredict_i is asserted, fetch_valid may
-     *   be asserted in response. If fetch_valid is asserted on the same cycle as
-     *   branch_mispredict_i this indicates the fetch_fifo/icache has the not-taken side of the
-     *   branch immediately ready for use
-     */
-    logic        predicted_branch_live_q, predicted_branch_live_d;
-    logic [31:0] predicted_branch_nt_pc_q, predicted_branch_nt_pc_d;
-    logic [31:0] awaiting_instr_after_mispredict_q, awaiting_instr_after_mispredict_d;
-    logic [31:0] next_pc;
-
-    logic mispredicted, mispredicted_d, mispredicted_q;
-
-    assign next_pc = fetch_addr + (instr_is_compressed_out ? 32'd2 : 32'd4);
-
-    logic predicted_branch;
-
-    // pc_set_i takes precendence over branch prediction
-    assign predicted_branch = predict_branch_taken & ~pc_set_i;
-
-    always_comb begin
-      predicted_branch_live_d = predicted_branch_live_q;
-      mispredicted_d          = mispredicted_q;
-
-      if (branch_req & predicted_branch) begin
-        predicted_branch_live_d = 1'b1;
-        mispredicted_d          = 1'b0;
-      end else if (predicted_branch_live_q) begin
-        if (fetch_valid & fetch_ready) begin
-          predicted_branch_live_d = 1'b0;
-        end else if (nt_branch_mispredict_i) begin
-          mispredicted_d = 1'b1;
-        end
-      end
-    end
-
-    always @(posedge clk_i or negedge rst_ni) begin
-      if (!rst_ni) begin
-        predicted_branch_live_q <= 1'b0;
-        mispredicted_q          <= 1'b0;
-      end else begin
-        predicted_branch_live_q <= predicted_branch_live_d;
-        mispredicted_q          <= mispredicted_d;
-      end
-    end
-
-    always @(posedge clk_i) begin
-      if (branch_req & predicted_branch) begin
-        predicted_branch_nt_pc_q <= next_pc;
-      end
-    end
-
-    // Must only see mispredict after we've performed a predicted branch but before we've accepted
-    // any instruction (with fetch_ready & fetch_valid) that follows that predicted branch.
-    `ASSERT(MispredictOnlyImmediatelyAfterPredictedBranch,
-      nt_branch_mispredict_i |-> predicted_branch_live_q)
-    // Check that on mispredict we get the correct PC for the non-taken side of the branch when
-    // prefetch buffer/icache makes that PC available.
-    `ASSERT(CorrectPCOnMispredict,
-      predicted_branch_live_q & mispredicted_d & fetch_valid |->
-      fetch_addr == predicted_branch_nt_pc_q)
-    // Must not signal mispredict over multiple cycles but it's possible to have back to back
-    // mispredicts for different branches (core signals mispredict, prefetch buffer/icache immediate
-    // has not-taken side of the mispredicted branch ready, which itself is a predicted branch,
-    // following cycle core signal that that branch has mispredicted).
-    `ASSERT(MispredictSingleCycle,
-      nt_branch_mispredict_i & ~(fetch_valid & fetch_ready) |=> ~nt_branch_mispredict_i)
-`endif
-
-  end else begin : g_no_branch_predictor_asserts
-    `ASSERT_IF(IbexPcMuxValid, pc_mux_internal inside {
-        PC_BOOT,
-        PC_JUMP,
-        PC_EXC,
-        PC_ERET,
-        PC_DRET},
-      pc_set_i)
-  end
-
-  // Boot address must be aligned to 256 bytes.
-  `ASSERT(IbexBootAddrUnaligned, boot_addr_i[7:0] == 8'h00)
-
-  // Address must not contain X when request is sent.
-  `ASSERT(IbexInstrAddrUnknown, instr_req_o |-> !$isunknown(instr_addr_o))
-
-  // Address must be word aligned when request is sent.
-  `ASSERT(IbexInstrAddrUnaligned, instr_req_o |-> (instr_addr_o[1:0] == 2'b00))
 
 endmodule

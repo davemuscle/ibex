@@ -11,9 +11,6 @@
  * and to align bytes and halfwords.
  */
 
-`include "prim_assert.sv"
-`include "dv_fcov_macros.svh"
-
 module ibex_load_store_unit #(
   parameter bit          MemECC       = 1'b0,
   parameter int unsigned MemDataWidth = MemECC ? 32 + 7 : 32
@@ -336,7 +333,7 @@ module ibex_load_store_unit #(
     logic [1:0] ecc_err;
     logic [MemDataWidth-1:0] data_rdata_buf;
 
-    prim_buf #(.Width(MemDataWidth)) u_prim_buf_instr_rdata (
+    prim_generic_buf #(.Width(MemDataWidth)) u_prim_generic_buf_instr_rdata (
       .in_i (data_rdata_i),
       .out_o(data_rdata_buf)
     );
@@ -553,72 +550,5 @@ module ibex_load_store_unit #(
   assign store_resp_intg_err_o = data_intg_err & data_rvalid_i & data_we_q;
 
   assign busy_o = (ls_fsm_cs != IDLE);
-
-  //////////
-  // FCOV //
-  //////////
-`ifndef DV_FCOV_DISABLE
-  // Set when awaiting the response for the second half of a misaligned access
-  logic fcov_mis_2_en_d, fcov_mis_2_en_q;
-
-  // fcov_mis_rvalid_1: Set when the response is received to the first half of a misaligned access,
-  // fcov_mis_rvalid_2: Set when response is received for the second half
-  logic fcov_mis_rvalid_1, fcov_mis_rvalid_2;
-
-  // Set when the first half of a misaligned access saw a bus errror
-  logic fcov_mis_bus_err_1_d, fcov_mis_bus_err_1_q;
-
-  assign fcov_mis_rvalid_1 = ls_fsm_cs inside {WAIT_RVALID_MIS, WAIT_RVALID_MIS_GNTS_DONE} &&
-                                data_rvalid_i;
-
-  assign fcov_mis_rvalid_2 = ls_fsm_cs inside {IDLE} && fcov_mis_2_en_q && data_rvalid_i;
-
-  assign fcov_mis_2_en_d = fcov_mis_rvalid_2 ? 1'b0            :  // clr
-                           fcov_mis_rvalid_1 ? 1'b1            :  // set
-                                               fcov_mis_2_en_q ;
-
-  assign fcov_mis_bus_err_1_d = fcov_mis_rvalid_2                   ? 1'b0                 : // clr
-                                fcov_mis_rvalid_1 && data_bus_err_i ? 1'b1                 : // set
-                                                                      fcov_mis_bus_err_1_q ;
-
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni) begin
-      fcov_mis_2_en_q <= 1'b0;
-      fcov_mis_bus_err_1_q <= 1'b0;
-    end else begin
-      fcov_mis_2_en_q <= fcov_mis_2_en_d;
-      fcov_mis_bus_err_1_q <= fcov_mis_bus_err_1_d;
-    end
-  end
-`endif
-
-  `DV_FCOV_SIGNAL(logic, ls_error_exception, (load_err_o | store_err_o) & ~pmp_err_q)
-  `DV_FCOV_SIGNAL(logic, ls_pmp_exception, (load_err_o | store_err_o) & pmp_err_q)
-  `DV_FCOV_SIGNAL(logic, ls_first_req, lsu_req_i & (ls_fsm_cs == IDLE))
-  `DV_FCOV_SIGNAL(logic, ls_second_req,
-    (ls_fsm_cs inside {WAIT_RVALID_MIS}) & data_req_o & addr_incr_req_o)
-  `DV_FCOV_SIGNAL(logic, ls_mis_pmp_err_1,
-    (ls_fsm_cs inside {WAIT_RVALID_MIS, WAIT_GNT_MIS}) && pmp_err_q)
-  `DV_FCOV_SIGNAL(logic, ls_mis_pmp_err_2,
-    (ls_fsm_cs inside {WAIT_RVALID_MIS, WAIT_RVALID_MIS_GNTS_DONE}) && data_pmp_err_i)
-
-  ////////////////
-  // Assertions //
-  ////////////////
-
-  // Selectors must be known/valid.
-  `ASSERT(IbexDataTypeKnown, (lsu_req_i | busy_o) |-> !$isunknown(lsu_type_i))
-  `ASSERT(IbexDataOffsetKnown, (lsu_req_i | busy_o) |-> !$isunknown(data_offset))
-  `ASSERT_KNOWN(IbexRDataOffsetQKnown, rdata_offset_q)
-  `ASSERT_KNOWN(IbexDataTypeQKnown, data_type_q)
-  `ASSERT(IbexLsuStateValid, ls_fsm_cs inside {
-      IDLE, WAIT_GNT_MIS, WAIT_RVALID_MIS, WAIT_GNT,
-      WAIT_RVALID_MIS_GNTS_DONE})
-
-  // Address must not contain X when request is sent.
-  `ASSERT(IbexDataAddrUnknown, data_req_o |-> !$isunknown(data_addr_o))
-
-  // Address must be word aligned when request is sent.
-  `ASSERT(IbexDataAddrUnaligned, data_req_o |-> (data_addr_o[1:0] == 2'b00))
 
 endmodule

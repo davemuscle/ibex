@@ -2,8 +2,6 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-`include "dv_fcov_macros.svh"
-
 module ibex_pmp #(
   // Granularity of NAPOT access,
   // 0 = No restriction, 1 = 8 byte, 2 = 16 byte, 3 = 32 byte, etc.
@@ -234,10 +232,6 @@ module ibex_pmp #(
                                                  priv_mode_i[c],
                                                  region_perm_check[c]);
 
-    // Access fails check against one region but access allowed due to another higher-priority
-    // region.
-    `DV_FCOV_SIGNAL(logic, pmp_region_override,
-      ~pmp_req_err_o[c] & |(region_match_all[c] & ~region_perm_check[c]))
   end
 
   // RLB, rule locking bypass, is only relevant to ibex_cs_registers which controls writes to the

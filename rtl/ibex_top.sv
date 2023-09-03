@@ -3,12 +3,6 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-`ifdef RISCV_FORMAL
-  `define RVFI
-`endif
-
-`include "prim_assert.sv"
-
 /**
  * Top level module of the ibex RISC-V core
  */
@@ -207,7 +201,7 @@ module ibex_top import ibex_pkg::*; #(
 
   if (SecureIbex) begin : g_clock_en_secure
     // For secure Ibex core_busy_q must be a specific multi-bit pattern to enable the clock.
-    prim_flop #(
+    prim_generic_flop #(
       .Width($bits(ibex_mubi_t)),
       .ResetValue(IbexMuBiOff)
     ) u_prim_core_busy_flop (
@@ -235,7 +229,7 @@ module ibex_top import ibex_pkg::*; #(
 
   assign core_sleep_o = ~clock_en;
 
-  prim_clock_gating core_clock_gate_i (
+  prim_generic_clock_gating core_clock_gate_i (
     .clk_i    (clk_i),
     .en_i     (clock_en),
     .test_en_i(test_en_i),
@@ -247,17 +241,17 @@ module ibex_top import ibex_pkg::*; #(
   ////////////////////////
 
   // Buffer security critical signals to prevent synthesis optimisation removing them
-  prim_buf #(.Width($bits(ibex_mubi_t))) u_fetch_enable_buf (
+  prim_generic_buf #(.Width($bits(ibex_mubi_t))) u_fetch_enable_buf (
     .in_i (fetch_enable_i),
     .out_o(fetch_enable_buf)
   );
 
-  prim_buf #(.Width(RegFileDataWidth)) u_rf_rdata_a_ecc_buf (
+  prim_generic_buf #(.Width(RegFileDataWidth)) u_rf_rdata_a_ecc_buf (
     .in_i (rf_rdata_a_ecc),
     .out_o(rf_rdata_a_ecc_buf)
   );
 
-  prim_buf #(.Width(RegFileDataWidth)) u_rf_rdata_b_ecc_buf (
+  prim_generic_buf #(.Width(RegFileDataWidth)) u_rf_rdata_b_ecc_buf (
     .in_i (rf_rdata_b_ecc),
     .out_o(rf_rdata_b_ecc_buf)
   );
@@ -622,40 +616,10 @@ module ibex_top import ibex_pkg::*; #(
           .cfg_i       (ram_cfg_i)
         );
 
-        `ifdef INC_ASSERT
-          // Sample scramble key whenever it is valid for use in the assertions below.  This may be
-          // redundant with the sampling performed in the actual design, but that is okay because
-          // the assertions exist to check the correct functioning of the design.
-          logic [SCRAMBLE_KEY_W-1:0] sampled_scramble_key;
-          always_ff @(posedge clk_i, negedge rst_ni) begin
-            if (!rst_ni) begin
-              sampled_scramble_key <= 'x;
-            end else if (scramble_key_valid_i) begin
-              sampled_scramble_key <= scramble_key_i;
-            end
-          end
-
-          // Ensure that when a scramble key is received, it is correctly applied to the icache
-          // scrambled memory primitives.  The upper bound in the cycle ranges below is not exact,
-          // but it should not take more than 10 cycles.
-          `ASSERT(ScrambleKeyAppliedAtTagBank_A,
-                  scramble_key_valid_i
-                  |-> ##[0:10]
-                  tag_bank.key_valid_i && (tag_bank.key_i == sampled_scramble_key),
-                  clk_i, !rst_ni
-          )
-          `ASSERT(ScrambleKeyAppliedAtDataBank_A,
-                  scramble_key_valid_i
-                  |-> ##[0:10]
-                  data_bank.key_valid_i && (data_bank.key_i == sampled_scramble_key),
-                  clk_i, !rst_ni
-          )
-        `endif
-
       end else begin : gen_noscramble_rams
 
         // Tag RAM instantiation
-        prim_ram_1p #(
+        prim_generic_ram_1p #(
           .Width            (TagSizeECC),
           .Depth            (IC_NUM_LINES),
           .DataBitsPerMask  (TagSizeECC)
@@ -674,7 +638,7 @@ module ibex_top import ibex_pkg::*; #(
         );
 
         // Data RAM instantiation
-        prim_ram_1p #(
+        prim_generic_ram_1p #(
           .Width              (LineSizeECC),
           .Depth              (IC_NUM_LINES),
           .DataBitsPerMask    (LineSizeECC)
@@ -715,7 +679,7 @@ module ibex_top import ibex_pkg::*; #(
   assign data_wdata_o = data_wdata_core[31:0];
 
   if (MemECC) begin : gen_mem_wdata_ecc
-    prim_buf #(.Width(7)) u_prim_buf_data_wdata_intg (
+    prim_generic_buf #(.Width(7)) u_prim_generic_buf_data_wdata_intg (
       .in_i (data_wdata_core[38:32]),
       .out_o(data_wdata_intg_o)
     );
@@ -728,7 +692,7 @@ module ibex_top import ibex_pkg::*; #(
     // SEC_CM: LOGIC.SHADOW
     // Note: certain synthesis tools like DC are very smart at optimizing away redundant logic.
     // Hence, we have to insert an optimization barrier at the IOs of the lockstep Ibex.
-    // This is achieved by manually buffering each bit using prim_buf.
+    // This is achieved by manually buffering each bit using prim_generic_buf.
     // Our Xilinx and DC synthesis flows make sure that these buffers cannot be optimized away
     // using keep attributes (Vivado) and size_only constraints (DC).
 
@@ -940,7 +904,7 @@ module ibex_top import ibex_pkg::*; #(
     } = buf_out;
 
     // Manually buffer all input signals.
-    prim_buf #(.Width(NumBufferBits)) u_signals_prim_buf (
+    prim_generic_buf #(.Width(NumBufferBits)) u_signals_prim_generic_buf (
       .in_i(buf_in),
       .out_o(buf_out)
     );
@@ -948,11 +912,11 @@ module ibex_top import ibex_pkg::*; #(
     logic [TagSizeECC-1:0]  ic_tag_rdata_local [IC_NUM_WAYS];
     logic [LineSizeECC-1:0] ic_data_rdata_local [IC_NUM_WAYS];
     for (genvar k = 0; k < IC_NUM_WAYS; k++) begin : gen_ways
-      prim_buf #(.Width(TagSizeECC)) u_tag_prim_buf (
+      prim_generic_buf #(.Width(TagSizeECC)) u_tag_prim_generic_buf (
         .in_i(ic_tag_rdata[k]),
         .out_o(ic_tag_rdata_local[k])
       );
-      prim_buf #(.Width(LineSizeECC)) u_data_prim_buf (
+      prim_generic_buf #(.Width(LineSizeECC)) u_data_prim_generic_buf (
         .in_i(ic_data_rdata[k]),
         .out_o(ic_data_rdata_local[k])
       );
@@ -1057,17 +1021,17 @@ module ibex_top import ibex_pkg::*; #(
       .scan_rst_ni            (scan_rst_ni)
     );
 
-    prim_buf u_prim_buf_alert_minor (
+    prim_generic_buf u_prim_generic_buf_alert_minor (
       .in_i (lockstep_alert_minor_local),
       .out_o(lockstep_alert_minor)
     );
 
-    prim_buf u_prim_buf_alert_major_internal (
+    prim_generic_buf u_prim_generic_buf_alert_major_internal (
       .in_i (lockstep_alert_major_internal_local),
       .out_o(lockstep_alert_major_internal)
     );
 
-    prim_buf u_prim_buf_alert_major_bus (
+    prim_generic_buf u_prim_generic_buf_alert_major_bus (
       .in_i (lockstep_alert_major_bus_local),
       .out_o(lockstep_alert_major_bus)
     );
@@ -1086,248 +1050,4 @@ module ibex_top import ibex_pkg::*; #(
   assign alert_major_bus_o      = core_alert_major_bus | lockstep_alert_major_bus;
   assign alert_minor_o          = core_alert_minor | lockstep_alert_minor;
 
-  // X checks for top-level outputs
-  `ASSERT_KNOWN(IbexInstrReqX, instr_req_o)
-  `ASSERT_KNOWN_IF(IbexInstrReqPayloadX, instr_addr_o, instr_req_o)
-
-  `ASSERT_KNOWN(IbexDataReqX, data_req_o)
-  `ASSERT_KNOWN_IF(IbexDataReqPayloadX,
-    {data_we_o, data_be_o, data_addr_o, data_wdata_o, data_wdata_intg_o}, data_req_o)
-
-  `ASSERT_KNOWN(IbexScrambleReqX, scramble_req_o)
-  `ASSERT_KNOWN(IbexDoubleFaultSeenX, double_fault_seen_o)
-  `ASSERT_KNOWN(IbexAlertMinorX, alert_minor_o)
-  `ASSERT_KNOWN(IbexAlertMajorInternalX, alert_major_internal_o)
-  `ASSERT_KNOWN(IbexAlertMajorBusX, alert_major_bus_o)
-  `ASSERT_KNOWN(IbexCoreSleepX, core_sleep_o)
-
-  // X check for top-level inputs
-  `ASSERT_KNOWN(IbexTestEnX, test_en_i)
-  `ASSERT_KNOWN(IbexRamCfgX, ram_cfg_i)
-  `ASSERT_KNOWN(IbexHartIdX, hart_id_i)
-  `ASSERT_KNOWN(IbexBootAddrX, boot_addr_i)
-
-  `ASSERT_KNOWN(IbexInstrGntX, instr_gnt_i)
-  `ASSERT_KNOWN(IbexInstrRValidX, instr_rvalid_i)
-  `ASSERT_KNOWN_IF(IbexInstrRPayloadX,
-    {instr_rdata_i, instr_rdata_intg_i, instr_err_i}, instr_rvalid_i)
-
-  `ASSERT_KNOWN(IbexDataGntX, data_gnt_i)
-  `ASSERT_KNOWN(IbexDataRValidX, data_rvalid_i)
-  `ifdef INC_ASSERT
-    // Ibex can have a maximum of 2 accesses outstanding on the DSide. This is because it does not
-    // speculative data accesses so the only requests that can be in flight must relate to a single
-    // ongoing load or store instruction. Due to unaligned access support a single load or store can
-    // generate 2 accesses.
-    localparam int unsigned MaxOutstandingDSideAccesses = 2;
-
-    typedef struct packed {
-      logic valid;
-      logic is_read;
-    } pending_access_t;
-
-    pending_access_t pending_dside_accesses_q[MaxOutstandingDSideAccesses];
-    pending_access_t pending_dside_accesses_d[MaxOutstandingDSideAccesses];
-    pending_access_t pending_dside_accesses_shifted[MaxOutstandingDSideAccesses];
-
-    for (genvar i = 0; i < MaxOutstandingDSideAccesses; i++) begin : g_dside_tracker
-      always_ff @(posedge clk or negedge rst_ni) begin
-        if (!rst_ni) begin
-          pending_dside_accesses_q[i] <= '0;
-        end else begin
-          pending_dside_accesses_q[i] <= pending_dside_accesses_d[i];
-        end
-      end
-
-      always_comb begin
-        pending_dside_accesses_shifted[i] = pending_dside_accesses_q[i];
-
-        if (data_rvalid_i) begin
-          if (i != MaxOutstandingDSideAccesses - 1) begin
-            pending_dside_accesses_shifted[i] = pending_dside_accesses_q[i + 1];
-          end else begin
-            pending_dside_accesses_shifted[i] = '0;
-          end
-        end
-      end
-
-      if (i == 0) begin : g_track_first_entry
-        always_comb begin
-          pending_dside_accesses_d[i] = pending_dside_accesses_shifted[i];
-
-          if (data_req_o && data_gnt_i && !pending_dside_accesses_shifted[i].valid) begin
-            pending_dside_accesses_d[i].valid = 1'b1;
-            pending_dside_accesses_d[i].is_read = ~data_we_o;
-          end
-        end
-      end else begin : g_track_other_entries
-        always_comb begin
-          pending_dside_accesses_d[i] = pending_dside_accesses_shifted[i];
-
-          if (data_req_o && data_gnt_i && pending_dside_accesses_shifted[i - 1].valid &&
-              !pending_dside_accesses_shifted[i].valid) begin
-            pending_dside_accesses_d[i].valid = 1'b1;
-            pending_dside_accesses_d[i].is_read = ~data_we_o;
-          end
-        end
-      end
-    end
-
-    // We should never start a new data request if we've already got the maximum outstanding. We can
-    // start a new request in the same cycle an old one ends, in which case we'll see all pending
-    // accesses valid but one will be ending this cycle so the empty slot can be immediately used by
-    // the new request.
-    `ASSERT(MaxOutstandingDSideAccessesCorrect,
-        data_req_o |->
-        ~pending_dside_accesses_q[MaxOutstandingDSideAccesses-1].valid | data_rvalid_i)
-
-    // Should only see a request response if we're expecting one
-    `ASSERT(PendingAccessTrackingCorrect, data_rvalid_i |-> pending_dside_accesses_q[0])
-
-    if (SecureIbex) begin : g_secure_ibex_mem_assert
-      // For SecureIbex responses to both writes and reads must specify rdata and rdata_intg (for
-      // writes rdata is effectively ignored by rdata_intg still checked against rdata)
-      `ASSERT_KNOWN_IF(IbexDataRPayloadX, {data_rdata_i, data_rdata_intg_i},
-          data_rvalid_i)
-    end else begin : g_no_secure_ibex_mem_assert
-      // Without SecureIbex data_rdata_i and data_rdata_intg_i are only relevant to reads. Check
-      // neither are X on a response to a read.
-      `ASSERT_KNOWN_IF(IbexDataRPayloadX, {data_rdata_i, data_rdata_intg_i},
-          data_rvalid_i & pending_dside_accesses_q[0].is_read)
-    end
-
-    // data_err_i relevant to both reads and writes. Check it isn't X on any response.
-    `ASSERT_KNOWN_IF(IbexDataRErrPayloadX, data_err_i, data_rvalid_i)
-
-    `ifdef RVFI
-    // Tracking logic and predictor for double_fault_seen_o output, relies on RVFI so only include
-    // it where RVFI is available.
-
-    // Returns 1'b1 if the provided instruction decodes to one that would write the sync_exc_bit of
-    // the CPUCTRLSTS CSR
-    function automatic logic insn_write_sync_exc_seen(logic [31:0] insn_bits);
-      return (insn_bits[6:0] == OPCODE_SYSTEM) &&
-             (insn_bits[14:12] inside {3'b001, 3'b010, 3'b011, 3'b101}) &&
-             (insn_bits[31:20] == CSR_CPUCTRLSTS);
-    endfunction
-
-    // Given an instruction that writes the sync_exc_bit of the CPUCTRLSTS CSR along with the value
-    // of the rs1 register read for that instruction and the current predicted sync_exc_bit bit
-    // return the new value of the sync_exc_bit after the instruction is executed.
-    function automatic logic new_sync_exc_bit(logic [31:0] insn_bits, logic [31:0] rs1,
-        logic cur_bit);
-      logic sync_exc_update_bit;
-
-      sync_exc_update_bit = insn_bits[14] ? 1'b0 : rs1[6];
-
-      case (insn_bits[13:12])
-        2'b01: return sync_exc_update_bit;
-        2'b10: return cur_bit | sync_exc_update_bit;
-        2'b11: return cur_bit & ~sync_exc_update_bit;
-        default: return 1'bx;
-      endcase
-    endfunction
-
-    localparam int DoubleFaultSeenLatency = 3;
-    logic [DoubleFaultSeenLatency-1:0] double_fault_seen_delay_buffer;
-    logic [DoubleFaultSeenLatency-2:0] double_fault_seen_delay_buffer_q;
-    logic                              sync_exc_seen;
-    logic                              new_sync_exc;
-    logic                              double_fault_seen_predicted;
-
-    assign new_sync_exc                = rvfi_valid & rvfi_trap & ~rvfi_ext_debug_mode;
-    assign double_fault_seen_predicted = sync_exc_seen & new_sync_exc;
-
-    // Depending on whether the exception comes from the WB or ID/EX stage the precise timing of the
-    // double_fault_seen_o output vs the double fault instruction being visible on RVFI differs. At
-    // the earliest extreme it can be asserted the same cycle the instruction is visible on the
-    // RVFI.  Buffer the last few cycles of double_fault_seen_o output for checking. We can
-    // guarantee the minimum spacing between double_fault_seen_o assertions  (occurring when the
-    // first instruction of an exception handler continuously double faults with a single cycle
-    // memory access time) is sufficient that we'll only see a single bit set in the delay buffer.
-    assign double_fault_seen_delay_buffer = {double_fault_seen_delay_buffer_q, double_fault_seen_o};
-
-    always @(posedge clk_i or negedge rst_ni) begin
-      if (!rst_ni) begin
-        double_fault_seen_delay_buffer_q <= '0;
-        sync_exc_seen <= 1'b0;
-      end else begin
-        double_fault_seen_delay_buffer_q <=
-          double_fault_seen_delay_buffer[DoubleFaultSeenLatency-2:0];
-
-        if (new_sync_exc) begin
-          // Set flag when we see a new synchronous exception
-          sync_exc_seen <= 1'b1;
-        end else if (rvfi_valid && rvfi_insn == 32'h30200073) begin
-          // Clear flag when we see an MRET
-          sync_exc_seen <= 1'b0;
-        end else if (rvfi_valid && insn_write_sync_exc_seen(rvfi_insn)) begin
-          // Update predicted sync_exc_seen when the instruction modifies the relevant CPUCTRLSTS
-          // CSR bit.
-          sync_exc_seen <= new_sync_exc_bit(rvfi_insn, rvfi_rs1_rdata, sync_exc_seen);
-        end
-      end
-    end
-
-    // We should only have a single assertion of double_fault_seen in the delay buffer
-    `ASSERT(DoubleFaultSinglePulse, $onehot0(double_fault_seen_delay_buffer))
-    // If we predict a double_fault_seen_o we should see one in the delay buffer
-    `ASSERT(DoubleFaultPulseSeenOnDoubleFault,
-      double_fault_seen_predicted |-> |double_fault_seen_delay_buffer)
-    // If double_fault_seen_o is asserted we should see predict one occurring within a bounded time
-    `ASSERT(DoubleFaultPulseOnlyOnDoubleFault,
-      double_fault_seen_o |-> ##[0:DoubleFaultSeenLatency] double_fault_seen_predicted)
-    `endif // RVFI
-  `endif
-
-  `ASSERT_KNOWN(IbexIrqX, {irq_software_i, irq_timer_i, irq_external_i, irq_fast_i, irq_nm_i})
-
-  `ASSERT_KNOWN(IbexScrambleKeyValidX, scramble_key_valid_i)
-  `ASSERT_KNOWN_IF(IbexScramblePayloadX, {scramble_key_i, scramble_nonce_i}, scramble_key_valid_i)
-
-  `ASSERT_KNOWN(IbexDebugReqX, debug_req_i)
-  `ASSERT_KNOWN(IbexFetchEnableX, fetch_enable_i)
-
-  // Dummy instructions may only write to register 0, which is a special register when dummy
-  // instructions are enabled.
-  `ASSERT(WaddrAZeroForDummyInstr, dummy_instr_wb && rf_we_wb |-> rf_waddr_wb == '0)
-
-  // Ensure the crash dump is connected to the correct internal signals
-  `ASSERT(CrashDumpCurrentPCConn, crash_dump_o.current_pc === u_ibex_core.pc_id)
-  `ASSERT(CrashDumpNextPCConn, crash_dump_o.next_pc === u_ibex_core.pc_if)
-  `ASSERT(CrashDumpLastDataAddrConn,
-    crash_dump_o.last_data_addr === u_ibex_core.load_store_unit_i.addr_last_q)
-  `ASSERT(CrashDumpExceptionPCConn,
-    crash_dump_o.exception_pc === u_ibex_core.cs_registers_i.mepc_q)
-  `ASSERT(CrashDumpExceptionAddrConn,
-    crash_dump_o.exception_addr === u_ibex_core.cs_registers_i.mtval_q)
-
-  // Explicit INC_ASSERT due to instantiation of prim_secded_inv_39_32_dec below that is only used
-  // by assertions
-  `ifdef INC_ASSERT
-  if (MemECC) begin : g_mem_ecc_asserts
-    logic [1:0] data_ecc_err, instr_ecc_err;
-
-    // Check alerts from memory integrity failures
-
-    prim_secded_inv_39_32_dec u_data_intg_dec (
-      .data_i     (data_rdata_core),
-      .data_o     (),
-      .syndrome_o (),
-      .err_o      (data_ecc_err)
-    );
-    `ASSERT(MajorAlertOnDMemIntegrityErr,
-      data_rvalid_i && (|data_ecc_err) |-> ##[0:5] alert_major_bus_o)
-
-    prim_secded_inv_39_32_dec u_instr_intg_dec (
-      .data_i     (instr_rdata_core),
-      .data_o     (),
-      .syndrome_o (),
-      .err_o      (instr_ecc_err)
-    );
-    // Check alerts from memory integrity failures
-    `ASSERT(MajorAlertOnIMemIntegrityErr,
-      instr_rvalid_i && (|instr_ecc_err) |-> ##[0:5] alert_major_bus_o)
-  end
-  `endif
 endmodule

@@ -72,7 +72,7 @@ module ibex_register_file_latch #(
   // WRITE //
   ///////////
   // Global clock gating
-  prim_clock_gating cg_we_global (
+  prim_generic_clock_gating cg_we_global (
       .clk_i     ( clk_i     ),
       .en_i      ( we_a_i    ),
       .test_en_i ( test_en_i ),
@@ -108,9 +108,9 @@ module ibex_register_file_latch #(
     // Buffer the decoded write enable bits so that the checker
     // is not optimized into the address decoding logic.
     logic [NUM_WORDS-1:0] waddr_onehot_a_buf;
-    prim_buf #(
+    prim_generic_buf #(
       .Width(NUM_WORDS)
-    ) u_prim_buf (
+    ) u_prim_generic_buf (
       .in_i(waddr_onehot_a),
       .out_o(waddr_onehot_a_buf)
     );
@@ -135,7 +135,7 @@ module ibex_register_file_latch #(
 
   // Individual clock gating (if integrated clock-gating cells are available)
   for (genvar x = 1; x < NUM_WORDS; x++) begin : gen_cg_word_iter
-    prim_clock_gating cg_i (
+    prim_generic_clock_gating cg_i (
         .clk_i     ( clk_int           ),
         .en_i      ( waddr_onehot_a[x] ),
         .test_en_i ( test_en_i         ),
@@ -166,7 +166,7 @@ module ibex_register_file_latch #(
     assign we_r0_dummy = we_a_i & dummy_instr_wb_i;
 
     // R0 clock gate
-    prim_clock_gating cg_i (
+    prim_generic_clock_gating cg_i (
         .clk_i     ( clk_int     ),
         .en_i      ( we_r0_dummy ),
         .test_en_i ( test_en_i   ),
