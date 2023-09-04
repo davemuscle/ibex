@@ -285,6 +285,9 @@ module ibex_id_stage #(
   logic [31:0] alu_operand_a;
   logic [31:0] alu_operand_b;
 
+  genvar i;
+  generate
+
   /////////////
   // LSU Mux //
   /////////////
@@ -375,7 +378,7 @@ module ibex_id_stage #(
   // Multicycle Operation Stage Register //
   /////////////////////////////////////////
 
-  for (genvar i = 0; i < 2; i++) begin : gen_intermediate_val_reg
+  for (i = 0; i < 2; i++) begin : gen_intermediate_val_reg
     always_ff @(posedge clk_i or negedge rst_ni) begin : intermediate_val_reg
       if (!rst_ni) begin
         imd_val_q[i] <= '0;
@@ -1034,4 +1037,5 @@ module ibex_id_stage #(
   assign perf_mul_wait_o = stall_multdiv & mult_en_dec;
   assign perf_div_wait_o = stall_multdiv & div_en_dec;
 
+  endgenerate
 endmodule

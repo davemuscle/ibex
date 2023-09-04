@@ -195,6 +195,9 @@ module ibex_top import ibex_pkg::*; #(
 
   ibex_mubi_t                  fetch_enable_buf;
 
+  genvar k, way;
+  generate
+
   /////////////////////
   // Main clock gate //
   /////////////////////
@@ -544,10 +547,10 @@ module ibex_top import ibex_pkg::*; #(
 
   if (ICache) begin : gen_rams
 
-    for (genvar way = 0; way < IC_NUM_WAYS; way++) begin : gen_rams_inner
+    for (way = 0; way < IC_NUM_WAYS; way++) begin : gen_rams_inner
 
       if (ICacheScramble) begin : gen_scramble_rams
-
+        /*
         // SEC_CM: ICACHE.MEM.SCRAMBLE
         // Tag RAM instantiation
         prim_ram_1p_scr #(
@@ -615,7 +618,7 @@ module ibex_top import ibex_pkg::*; #(
           .rerror_o    (),
           .cfg_i       (ram_cfg_i)
         );
-
+        */
       end else begin : gen_noscramble_rams
 
         // Tag RAM instantiation
@@ -911,7 +914,7 @@ module ibex_top import ibex_pkg::*; #(
 
     logic [TagSizeECC-1:0]  ic_tag_rdata_local [IC_NUM_WAYS];
     logic [LineSizeECC-1:0] ic_data_rdata_local [IC_NUM_WAYS];
-    for (genvar k = 0; k < IC_NUM_WAYS; k++) begin : gen_ways
+    for (k = 0; k < IC_NUM_WAYS; k++) begin : gen_ways
       prim_generic_buf #(.Width(TagSizeECC)) u_tag_prim_generic_buf (
         .in_i(ic_tag_rdata[k]),
         .out_o(ic_tag_rdata_local[k])
@@ -1050,4 +1053,5 @@ module ibex_top import ibex_pkg::*; #(
   assign alert_major_bus_o      = core_alert_major_bus | lockstep_alert_major_bus;
   assign alert_minor_o          = core_alert_minor | lockstep_alert_minor;
 
+endgenerate
 endmodule

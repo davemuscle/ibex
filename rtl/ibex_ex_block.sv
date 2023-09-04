@@ -68,6 +68,8 @@ module ibex_ex_block #(
   logic [33:0] multdiv_imd_val_d[2];
   logic [ 1:0] multdiv_imd_val_we;
 
+  generate
+
   /*
     The multdiv_i output is never selected if RV32M=RV32MNone
     At synthesis time, all the combinational and sequential logic
@@ -196,4 +198,5 @@ module ibex_ex_block #(
   // final cycle of ALU operation).
   assign ex_valid_o = multdiv_sel ? multdiv_valid : ~(|alu_imd_val_we);
 
+  endgenerate
 endmodule

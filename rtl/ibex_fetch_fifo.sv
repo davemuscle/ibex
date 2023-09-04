@@ -59,6 +59,9 @@ module ibex_fetch_fifo #(
   logic                     instr_addr_en;
   logic                     unused_addr_in;
 
+  genvar i;
+  generate
+
   /////////////////
   // Output port //
   /////////////////
@@ -185,7 +188,7 @@ module ibex_fetch_fifo #(
   // Since an entry can contain unaligned instructions, popping an entry can leave the entry valid
   assign pop_fifo = out_ready_i & out_valid_o & (~aligned_is_compressed | out_addr_o[1]);
 
-  for (genvar i = 0; i < (DEPTH - 1); i++) begin : g_fifo_next
+  for (i = 0; i < (DEPTH - 1); i++) begin : g_fifo_next
     // Calculate lowest free entry (write pointer)
     if (i == 0) begin : g_ent0
       assign lowest_free_entry[i] = ~valid_q[i];
@@ -210,6 +213,7 @@ module ibex_fetch_fifo #(
     assign rdata_d[i]  = valid_q[i+1] ? rdata_q[i+1] : in_rdata_i;
     assign err_d  [i]  = valid_q[i+1] ? err_q  [i+1] : in_err_i;
   end
+
   // The top entry is similar but with simpler muxing
   assign lowest_free_entry[DEPTH-1] = ~valid_q[DEPTH-1] & valid_q[DEPTH-2];
   assign valid_pushed     [DEPTH-1] = valid_q[DEPTH-1] | (in_valid_i & lowest_free_entry[DEPTH-1]);
@@ -231,7 +235,7 @@ module ibex_fetch_fifo #(
     end
   end
 
-  for (genvar i = 0; i < DEPTH; i++) begin : g_fifo_regs
+  for (i = 0; i < DEPTH; i++) begin : g_fifo_regs
     if (ResetAll) begin : g_rdata_ra
       always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
@@ -252,4 +256,5 @@ module ibex_fetch_fifo #(
     end
   end
 
+endgenerate
 endmodule

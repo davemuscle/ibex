@@ -164,6 +164,8 @@ module ibex_controller #(
   logic csr_pipe_flush;
   logic instr_fetch_err;
 
+  generate
+
 `ifndef SYNTHESIS
   // synopsys translate_off
   // make sure we are called later so that we do not generate messages for
@@ -888,4 +890,5 @@ module ibex_controller #(
 
     assign rvfi_flush_next = ctrl_fsm_ns == FLUSH;
   `endif
+  endgenerate
 endmodule

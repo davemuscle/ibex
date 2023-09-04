@@ -71,6 +71,8 @@ module ibex_multdiv_slow
   logic        multdiv_hold;
   logic        multdiv_en;
 
+  generate
+
    // (accum_window_q + op_a_shift_q)
   assign res_adder_l = alu_adder_ext_i[32:0];
    // (accum_window_q + op_a_shift_q)>>1
@@ -357,5 +359,7 @@ module ibex_multdiv_slow
                     operator_i == MD_OP_MULH));
 
   assign multdiv_result_o = div_en_i ? accum_window_q[31:0] : res_adder_l[31:0];
+
+  endgenerate
 
 endmodule

@@ -22,6 +22,8 @@ module ibex_counter #(
   logic                    we;
   logic [CounterWidth-1:0] counter_d;
 
+generate
+
   // Increment
   assign counter_upd = counter[CounterWidth-1:0] + {{CounterWidth - 1{1'b0}}, 1'b1};
 
@@ -92,6 +94,8 @@ module ibex_counter #(
   end
 
   assign counter_val_o = counter;
+
+endgenerate
 
 endmodule
 

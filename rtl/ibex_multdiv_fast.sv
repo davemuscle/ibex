@@ -87,6 +87,8 @@ module ibex_multdiv_fast #(
   } md_fsm_e;
   md_fsm_e md_state_q, md_state_d;
 
+  generate
+
   logic unused_mult_sel_i;
   assign unused_mult_sel_i = mult_sel_i;
 
@@ -507,5 +509,6 @@ module ibex_multdiv_fast #(
   end
 
   assign valid_o = mult_valid | div_valid;
+  endgenerate
 
 endmodule // ibex_mult

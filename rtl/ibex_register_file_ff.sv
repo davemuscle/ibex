@@ -49,6 +49,9 @@ module ibex_register_file_ff #(
   logic [DataWidth-1:0] rf_reg   [NUM_WORDS];
   logic [NUM_WORDS-1:0] we_a_dec;
 
+  genvar i;
+  generate
+
   always_comb begin : we_a_decoder
     for (int unsigned i = 0; i < NUM_WORDS; i++) begin
       we_a_dec[i] = (waddr_a_i == 5'(i)) ? we_a_i : 1'b0;
@@ -87,7 +90,7 @@ module ibex_register_file_ff #(
   end
 
   // No flops for R0 as it's hard-wired to 0
-  for (genvar i = 1; i < NUM_WORDS; i++) begin : g_rf_flops
+  for (i = 1; i < NUM_WORDS; i++) begin : g_rf_flops
     logic [DataWidth-1:0] rf_reg_q;
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -136,5 +139,7 @@ module ibex_register_file_ff #(
   // Signal not used in FF register file
   logic unused_test_en;
   assign unused_test_en = test_en_i;
+
+  endgenerate
 
 endmodule

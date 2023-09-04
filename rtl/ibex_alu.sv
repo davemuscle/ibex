@@ -32,12 +32,13 @@ module ibex_alu #(
   output logic              is_equal_result_o
 );
   import ibex_pkg::*;
-
+  genvar k,i,stg,seg;
+  generate
   logic [31:0] operand_a_rev;
   logic [32:0] operand_b_neg;
 
   // bit reverse operand_a for left shifts and bit counting
-  for (genvar k = 0; k < 32; k++) begin : gen_rev_operand_a
+  for (k = 0; k < 32; k++) begin : gen_rev_operand_a
     assign operand_a_rev[k] = operand_a_i[31-k];
   end
 
@@ -267,7 +268,7 @@ module ibex_alu #(
   assign bfp_len = {~(|operand_b_i[27:24]), operand_b_i[27:24]}; // len = 0 encodes for len = 16
   assign bfp_off = operand_b_i[20:16];
   assign bfp_mask = (RV32B != RV32BNone) ? ~(32'hffff_ffff << bfp_len) : '0;
-  for (genvar i = 0; i < 32; i++) begin : gen_rev_bfp_mask
+  for (i = 0; i < 32; i++) begin : gen_rev_bfp_mask
     assign bfp_mask_rev[i] = bfp_mask[31-i];
   end
 
@@ -646,6 +647,7 @@ module ibex_alu #(
     logic [31:0] clmul_result_rev;
 
     if (RV32B == RV32BOTEarlGrey || RV32B == RV32BFull) begin : gen_alu_rvb_otearlgrey_full
+        genvar i;
 
       /////////////////////////
       // Shuffle / Unshuffle //
@@ -662,7 +664,7 @@ module ibex_alu #(
           '{32'h0088_0044, 32'h0000_2200, 32'h0000_8822, 32'h0000_0088};
 
       logic [31:0] SHUFFLE_MASK_NOT [4];
-      for(genvar i = 0; i < 4; i++) begin : gen_shuffle_mask_not
+      for(i = 0; i < 4; i++) begin : gen_shuffle_mask_not
         assign SHUFFLE_MASK_NOT[i] = ~(SHUFFLE_MASK_L[i] | SHUFFLE_MASK_R[i]);
       end
 
@@ -749,7 +751,7 @@ module ibex_alu #(
       // Per nibble, 3 bits are needed for the selection. Other bits must be zero.
       // sel_n bit mask: 32'b0111_0111_0111_0111_0111_0111_0111_0111
       // vld_n bit mask: 32'b1000_1000_1000_1000_1000_1000_1000_1000
-      for (genvar i = 0; i < 8; i++) begin : gen_sel_vld_n
+      for (i = 0; i < 8; i++) begin : gen_sel_vld_n
         assign sel_n[i] =   operand_b_i[i*4     +: 3];
         assign vld_n[i] = ~|operand_b_i[i*4 + 3 +: 1];
       end
@@ -757,7 +759,7 @@ module ibex_alu #(
       // Per byte, 2 bits are needed for the selection. Other bits must be zero.
       // sel_b bit mask: 32'b0000_0011_0000_0011_0000_0011_0000_0011
       // vld_b bit mask: 32'b1111_1100_1111_1100_1111_1100_1111_1100
-      for (genvar i = 0; i < 4; i++) begin : gen_sel_vld_b
+      for (i = 0; i < 4; i++) begin : gen_sel_vld_b
         assign sel_b[i] =   operand_b_i[i*8     +: 2];
         assign vld_b[i] = ~|operand_b_i[i*8 + 2 +: 6];
       end
@@ -765,7 +767,7 @@ module ibex_alu #(
       // Per half word, 1 bit is needed for the selection only. All other bits must be zero.
       // sel_h bit mask: 32'b0000_0000_0000_0001_0000_0000_0000_0001
       // vld_h bit mask: 32'b1111_1111_1111_1110_1111_1111_1111_1110
-      for (genvar i = 0; i < 2; i++) begin : gen_sel_vld_h
+      for (i = 0; i < 2; i++) begin : gen_sel_vld_h
         assign sel_h[i] =   operand_b_i[i*16     +: 1];
         assign vld_h[i] = ~|operand_b_i[i*16 + 1 +: 15];
       end
@@ -814,7 +816,7 @@ module ibex_alu #(
       logic [7:0][3:0] val_n;
       logic [7:0][3:0] xperm_n;
       assign val_n = operand_a_i;
-      for (genvar i = 0; i < 8; i++) begin : gen_xperm_n
+      for (i = 0; i < 8; i++) begin : gen_xperm_n
         assign xperm_n[i] = vld[i] ? val_n[sel[i]] : '0;
       end
       assign xperm_result = xperm_n;
@@ -893,7 +895,7 @@ module ibex_alu #(
 
       logic [31:0] clmul_result_raw;
 
-      for (genvar i = 0; i < 32; i++) begin : gen_rev_operand_b
+      for (i = 0; i < 32; i++) begin : gen_rev_operand_b
         assign operand_b_rev[i] = operand_b_i[31-i];
       end
 
@@ -948,29 +950,29 @@ module ibex_alu #(
         end
       end
 
-      for (genvar i = 0; i < 32; i++) begin : gen_clmul_and_op
+      for (i = 0; i < 32; i++) begin : gen_clmul_and_op
         assign clmul_and_stage[i] = clmul_op_b[i] ? clmul_op_a << i : '0;
       end
 
-      for (genvar i = 0; i < 16; i++) begin : gen_clmul_xor_op_l1
+      for (i = 0; i < 16; i++) begin : gen_clmul_xor_op_l1
         assign clmul_xor_stage1[i] = clmul_and_stage[2*i] ^ clmul_and_stage[2*i+1];
       end
 
-      for (genvar i = 0; i < 8; i++) begin : gen_clmul_xor_op_l2
+      for (i = 0; i < 8; i++) begin : gen_clmul_xor_op_l2
         assign clmul_xor_stage2[i] = clmul_xor_stage1[2*i] ^ clmul_xor_stage1[2*i+1];
       end
 
-      for (genvar i = 0; i < 4; i++) begin : gen_clmul_xor_op_l3
+      for (i = 0; i < 4; i++) begin : gen_clmul_xor_op_l3
         assign clmul_xor_stage3[i] = clmul_xor_stage2[2*i] ^ clmul_xor_stage2[2*i+1];
       end
 
-      for (genvar i = 0; i < 2; i++) begin : gen_clmul_xor_op_l4
+      for (i = 0; i < 2; i++) begin : gen_clmul_xor_op_l4
         assign clmul_xor_stage4[i] = clmul_xor_stage3[2*i] ^ clmul_xor_stage3[2*i+1];
       end
 
       assign clmul_result_raw = clmul_xor_stage4[0] ^ clmul_xor_stage4[1];
 
-      for (genvar i = 0; i < 32; i++) begin : gen_rev_clmul_result
+      for (i = 0; i < 32; i++) begin : gen_rev_clmul_result
         assign clmul_result_rev[i] = clmul_result_raw[31-i];
       end
 
@@ -994,6 +996,7 @@ module ibex_alu #(
     end
 
     if (RV32B == RV32BFull) begin : gen_alu_rvb_full
+        genvar i;
 
       ///////////////
       // Butterfly //
@@ -1051,23 +1054,23 @@ module ibex_alu #(
 
       // first cycle
       // Store partial bitcnts
-      for (genvar i = 0; i < 32; i++) begin : gen_bitcnt_reg_in_lsb
+      for (i = 0; i < 32; i++) begin : gen_bitcnt_reg_in_lsb
         assign bitcnt_partial_lsb_d[i] = bitcnt_partial[i][0];
       end
 
-      for (genvar i = 0; i < 16; i++) begin : gen_bitcnt_reg_in_b1
+      for (i = 0; i < 16; i++) begin : gen_bitcnt_reg_in_b1
         assign bitcnt_partial_msb_d[i] = bitcnt_partial[2*i+1][1];
       end
 
-      for (genvar i = 0; i < 8; i++) begin : gen_bitcnt_reg_in_b2
+      for (i = 0; i < 8; i++) begin : gen_bitcnt_reg_in_b2
         assign bitcnt_partial_msb_d[16+i] = bitcnt_partial[4*i+3][2];
       end
 
-      for (genvar i = 0; i < 4; i++) begin : gen_bitcnt_reg_in_b3
+      for (i = 0; i < 4; i++) begin : gen_bitcnt_reg_in_b3
         assign bitcnt_partial_msb_d[24+i] = bitcnt_partial[8*i+7][3];
       end
 
-      for (genvar i = 0; i < 2; i++) begin : gen_bitcnt_reg_in_b4
+      for (i = 0; i < 2; i++) begin : gen_bitcnt_reg_in_b4
         assign bitcnt_partial_msb_d[28+i] = bitcnt_partial[16*i+15][4];
       end
 
@@ -1111,9 +1114,9 @@ module ibex_alu #(
       `define _N(stg) (16 >> stg)
 
       // bcompress / bdecompress control bit generation
-      for (genvar stg = 0; stg < 5; stg++) begin : gen_butterfly_ctrl_stage
+      for (stg = 0; stg < 5; stg++) begin : gen_butterfly_ctrl_stage
         // number of segs: 2** stg
-        for (genvar seg=0; seg<2**stg; seg++) begin : gen_butterfly_ctrl
+        for (seg=0; seg<2**stg; seg++) begin : gen_butterfly_ctrl
 
           assign lrotc_stage[stg][2*`_N(stg)*(seg+1)-1 : 2*`_N(stg)*seg] =
               {{`_N(stg){1'b0}},{`_N(stg){1'b1}}} <<
@@ -1131,7 +1134,7 @@ module ibex_alu #(
       end
       `undef _N
 
-      for (genvar stg = 0; stg < 5; stg++) begin : gen_butterfly_not
+      for (stg = 0; stg < 5; stg++) begin : gen_butterfly_not
         assign butterfly_mask_not[stg] =
             ~(butterfly_mask_l[stg] | butterfly_mask_r[stg]);
       end
@@ -1397,4 +1400,5 @@ module ibex_alu #(
   logic unused_shift_amt_compl;
   assign unused_shift_amt_compl = shift_amt_compl[5];
 
+endgenerate
 endmodule

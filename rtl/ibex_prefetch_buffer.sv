@@ -60,6 +60,9 @@ module ibex_prefetch_buffer #(
   logic                fifo_clear;
   logic [NUM_REQS-1:0] fifo_busy;
 
+  genvar i;
+  generate
+
   ////////////////////////////
   // Prefetch buffer status //
   ////////////////////////////
@@ -76,7 +79,7 @@ module ibex_prefetch_buffer #(
   assign fifo_clear = branch_i;
 
   // Reversed version of rdata_outstanding_q which can be overlaid with fifo fill state
-  for (genvar i = 0; i < NUM_REQS; i++) begin : gen_rd_rev
+  for (i = 0; i < NUM_REQS; i++) begin : gen_rd_rev
     assign rdata_outstanding_rev[i] = rdata_outstanding_q[NUM_REQS-1-i];
   end
 
@@ -198,7 +201,7 @@ module ibex_prefetch_buffer #(
   // Request outstanding queue //
   ///////////////////////////////
 
-  for (genvar i = 0; i < NUM_REQS; i++) begin : g_outstanding_reqs
+  for (i = 0; i < NUM_REQS; i++) begin : g_outstanding_reqs
     // Request 0 (always the oldest outstanding request)
     if (i == 0) begin : g_req0
       // A request becomes outstanding once granted, and is cleared once the rvalid is received.
@@ -260,5 +263,6 @@ module ibex_prefetch_buffer #(
 
   assign instr_req_o  = valid_req;
   assign instr_addr_o = instr_addr_w_aligned;
+  endgenerate
 
 endmodule

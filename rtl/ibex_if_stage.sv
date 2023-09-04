@@ -165,6 +165,8 @@ module ibex_if_stage import ibex_pkg::*; #(
   logic        [7:0] unused_csr_mtvec;
   logic              unused_exc_cause;
 
+  generate
+
   assign unused_boot_addr = boot_addr_i[7:0];
   assign unused_csr_mtvec = csr_mtvec_i[7:0];
 
@@ -665,5 +667,7 @@ module ibex_if_stage import ibex_pkg::*; #(
     assign if_instr_bus_err = fetch_err;
     assign fetch_ready = id_in_ready_i & ~stall_dummy_instr;
   end
+
+  endgenerate
 
 endmodule

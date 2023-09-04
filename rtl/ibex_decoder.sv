@@ -119,6 +119,8 @@ module ibex_decoder #(
   opcode_e     opcode;
   opcode_e     opcode_alu;
 
+  generate
+
   // To help timing the flops containing the current instruction are replicated to reduce fan-out.
   // instr_alu is used to determine the ALU control logic and associated operand/imm select signals
   // as the ALU is often on the more critical timing paths. instr is used for everything else.
@@ -1196,5 +1198,6 @@ module ibex_decoder #(
 
   // Not all bits are used
   assign unused_instr_alu = {instr_alu[19:15],instr_alu[11:7]};
+endgenerate
 
 endmodule // controller

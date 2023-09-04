@@ -195,6 +195,9 @@ module ibex_icache import ibex_pkg::*; #(
   logic                  inval_index_en;
   logic                  inval_active;
 
+  genvar bank,way,fb,b;
+  generate
+
   //////////////////////////
   // Instruction prefetch //
   //////////////////////////
@@ -293,7 +296,7 @@ module ibex_icache import ibex_pkg::*; #(
     assign tag_wdata_ic0 = {tag_ecc_output_padded[27:22],tag_ecc_output_padded[IC_TAG_SIZE-1:0]};
 
     // Dataram ECC
-    for (genvar bank = 0; bank < IC_LINE_BEATS; bank++) begin : gen_ecc_banks
+    for (bank = 0; bank < IC_LINE_BEATS; bank++) begin : gen_ecc_banks
       prim_secded_inv_39_32_enc data_ecc_enc (
         .data_i (fill_wdata_ic0[bank*BUS_SIZE+:BUS_SIZE]),
         .data_o (data_wdata_ic0[bank*BusSizeECC+:BusSizeECC])
@@ -359,7 +362,7 @@ module ibex_icache import ibex_pkg::*; #(
   ////////////////////////
 
   // Tag matching
-  for (genvar way = 0; way < IC_NUM_WAYS; way++) begin : gen_tag_match
+  for (way = 0; way < IC_NUM_WAYS; way++) begin : gen_tag_match
     assign tag_match_ic1[way]   = (tag_rdata_ic1[way][IC_TAG_SIZE-1:0] ==
                                    {1'b1,lookup_addr_ic1[ADDR_W-1:IC_INDEX_HI+1]});
     assign tag_invalid_ic1[way] = ~tag_rdata_ic1[way][IC_TAG_SIZE-1];
@@ -382,7 +385,7 @@ module ibex_icache import ibex_pkg::*; #(
   // 2 global round-robin (pseudorandom) way
   assign lowest_invalid_way_ic1[0] = tag_invalid_ic1[0];
   assign round_robin_way_ic1[0]    = round_robin_way_q[IC_NUM_WAYS-1];
-  for (genvar way = 1; way < IC_NUM_WAYS; way++) begin : gen_lowest_way
+  for (way = 1; way < IC_NUM_WAYS; way++) begin : gen_lowest_way
     assign lowest_invalid_way_ic1[way] = tag_invalid_ic1[way] & ~|tag_invalid_ic1[way-1:0];
     assign round_robin_way_ic1[way]    = round_robin_way_q[way-1];
   end
@@ -408,7 +411,7 @@ module ibex_icache import ibex_pkg::*; #(
     logic [IC_INDEX_W-1:0]      lookup_index_ic1, ecc_correction_index_q;
 
     // Tag ECC checking
-    for (genvar way = 0; way < IC_NUM_WAYS; way++) begin : gen_tag_ecc
+    for (way = 0; way < IC_NUM_WAYS; way++) begin : gen_tag_ecc
       logic [1:0]  tag_err_bank_ic1;
       logic [27:0] tag_rdata_padded_ic1;
 
@@ -428,7 +431,7 @@ module ibex_icache import ibex_pkg::*; #(
 
     // Data ECC checking
     // Note - could generate for all ways and mux after
-    for (genvar bank = 0; bank < IC_LINE_BEATS; bank++) begin : gen_ecc_banks
+    for (bank = 0; bank < IC_LINE_BEATS; bank++) begin : gen_ecc_banks
       prim_secded_inv_39_32_dec data_ecc_dec (
         .data_i     (hit_data_ecc_ic1[bank*BusSizeECC+:BusSizeECC]),
         .data_o     (),
@@ -568,7 +571,7 @@ module ibex_icache import ibex_pkg::*; #(
   assign fill_spec_done = fill_spec_req & instr_gnt_i;
   assign fill_spec_hold = fill_spec_req & ~instr_gnt_i;
 
-  for (genvar fb = 0; fb < NUM_FB; fb++) begin : gen_fbs
+  for (fb = 0; fb < NUM_FB; fb++) begin : gen_fbs
 
     /////////////////////////////
     // Fill buffer allocations //
@@ -806,7 +809,7 @@ module ibex_icache import ibex_pkg::*; #(
     assign fill_data_d[fb] = fill_hit_ic1[fb] ? hit_data_ic1 :
                                                 {IC_LINE_BEATS{instr_rdata_i}};
 
-    for (genvar b = 0; b < IC_LINE_BEATS; b++) begin : gen_data_buf
+    for (b = 0; b < IC_LINE_BEATS; b++) begin : gen_data_buf
       // Error tracking (per beat)
       assign fill_err_d[fb][b]   = (fill_rvd_arb[fb] & instr_err_i &
                                     (fill_rvd_off[fb] == b[IC_LINE_BEATS_W-1:0])) |
@@ -1166,5 +1169,7 @@ module ibex_icache import ibex_pkg::*; #(
   // Only busy (for WFI purposes) while an invalidation is in-progress, or external requests are
   // outstanding.
   assign busy_o = inval_active | (|(fill_busy_q & ~fill_rvd_done));
+
+endgenerate
 
 endmodule

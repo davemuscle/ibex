@@ -68,6 +68,9 @@ module ibex_register_file_latch #(
   assign rdata_a_o = mem[raddr_a_int];
   assign rdata_b_o = mem[raddr_b_int];
 
+  genvar i;
+  generate 
+
   ///////////
   // WRITE //
   ///////////
@@ -134,19 +137,19 @@ module ibex_register_file_latch #(
   end
 
   // Individual clock gating (if integrated clock-gating cells are available)
-  for (genvar x = 1; x < NUM_WORDS; x++) begin : gen_cg_word_iter
+  for (i = 1; i < NUM_WORDS; i++) begin : gen_cg_word_iter
     prim_generic_clock_gating cg_i (
         .clk_i     ( clk_int           ),
-        .en_i      ( waddr_onehot_a[x] ),
+        .en_i      ( waddr_onehot_a[i] ),
         .test_en_i ( test_en_i         ),
-        .clk_o     ( mem_clocks[x]     )
+        .clk_o     ( mem_clocks[i]     )
     );
   end
 
   // Actual write operation:
   // Generate the sequential process for the NUM_WORDS words of the memory.
   // The process is synchronized with the clocks mem_clocks[i], i = 1, ..., NUM_WORDS-1.
-  for (genvar i = 1; i < NUM_WORDS; i++) begin : g_rf_latches
+  for (i = 1; i < NUM_WORDS; i++) begin : g_rf_latches
     always_latch begin
       if (mem_clocks[i]) begin
         mem[i] = wdata_a_q;
@@ -196,4 +199,5 @@ module ibex_register_file_latch #(
   end
 `endif
 
+endgenerate
 endmodule

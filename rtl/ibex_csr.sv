@@ -22,6 +22,7 @@ module ibex_csr #(
 );
 
   logic [Width-1:0] rdata_q;
+  generate
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
@@ -50,4 +51,5 @@ module ibex_csr #(
     assign rd_error_o = 1'b0;
   end
 
+endgenerate
 endmodule

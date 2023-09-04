@@ -47,6 +47,8 @@ module ibex_register_file_fpga #(
   logic [DataWidth-1:0] mem[NUM_WORDS];
   logic we; // write enable if writing to any register other than R0
 
+  generate
+
   // async_read a
   assign rdata_a_o = (raddr_a_i == '0) ? '0 : mem[raddr_a_i];
 
@@ -93,5 +95,7 @@ module ibex_register_file_fpga #(
   // Test enable signal not used in FPGA implementation
   logic unused_test_en;
   assign unused_test_en = test_en_i;
+
+  endgenerate
 
 endmodule

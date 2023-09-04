@@ -361,6 +361,9 @@ module ibex_core import ibex_pkg::*; #(
   // for RVFI
   logic        illegal_insn_id, unused_illegal_insn_id; // ID stage sees an illegal instruction
 
+  genvar i;
+  generate
+
   //////////////////////
   // Clock management //
   //////////////////////
@@ -381,7 +384,7 @@ module ibex_core import ibex_pkg::*; #(
     );
 
     // Set core_busy_o to IbexMuBiOn if even a single input is high.
-    for (genvar i = 0; i < $bits(ibex_mubi_t); i++) begin : g_core_busy_bits
+    for (i = 0; i < $bits(ibex_mubi_t); i++) begin : g_core_busy_bits
       if (IbexMuBiOn[i] == 1'b1) begin : g_pos
         assign core_busy_o[i] =  |busy_bits_buf[i*NumBusySignals +: NumBusySignals];
       end else begin : g_neg
@@ -1381,7 +1384,7 @@ module ibex_core import ibex_pkg::*; #(
 
   // rvfi_irq_valid signals an interrupt event to the cosim. These should only occur when the RVFI
   // pipe is empty so just send it straigh through.
-  for (genvar i = 0; i < RVFI_STAGES + 1; i = i + 1) begin : g_rvfi_irq_valid
+  for (i = 0; i < RVFI_STAGES + 1; i = i + 1) begin : g_rvfi_irq_valid
     if (i == 0) begin : g_rvfi_irq_valid_first_stage
       always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
@@ -1401,7 +1404,7 @@ module ibex_core import ibex_pkg::*; #(
     end
   end
 
-  for (genvar i = 0; i < RVFI_STAGES; i = i + 1) begin : g_rvfi_stages
+  for (i = 0; i < RVFI_STAGES; i = i + 1) begin : g_rvfi_stages
     always_ff @(posedge clk_i or negedge rst_ni) begin
       if (!rst_ni) begin
         rvfi_stage_halt[i]                 <= '0;
@@ -1709,5 +1712,7 @@ module ibex_core import ibex_pkg::*; #(
   assign unused_instr_new_id = instr_new_id;
   assign unused_instr_done_wb = instr_done_wb;
 `endif
+
+endgenerate
 
 endmodule

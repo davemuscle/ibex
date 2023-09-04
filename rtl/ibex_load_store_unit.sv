@@ -105,6 +105,8 @@ module ibex_load_store_unit #(
 
   ls_fsm_e ls_fsm_cs, ls_fsm_ns;
 
+  generate
+
   assign data_addr   = adder_result_ex_i;
   assign data_offset = data_addr[1:0];
 
@@ -550,5 +552,7 @@ module ibex_load_store_unit #(
   assign store_resp_intg_err_o = data_intg_err & data_rvalid_i & data_we_q;
 
   assign busy_o = (ls_fsm_cs != IDLE);
+
+  endgenerate
 
 endmodule
